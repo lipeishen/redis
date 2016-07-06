@@ -63,21 +63,24 @@
 aeEventLoop *aeCreateEventLoop(int setsize) {
     aeEventLoop *eventLoop;
     int i;
-
+   //分配空间
     if ((eventLoop = zmalloc(sizeof(*eventLoop))) == NULL) goto err;
-    eventLoop->events = zmalloc(sizeof(aeFileEvent)*setsize);
-    eventLoop->fired = zmalloc(sizeof(aeFiredEvent)*setsize);
+    eventLoop->events = zmalloc(sizeof(aeFileEvent)*setsize);//为文件事件分配空间
+    eventLoop->fired = zmalloc(sizeof(aeFiredEvent)*setsize);//为时间事件分配空间
     if (eventLoop->events == NULL || eventLoop->fired == NULL) goto err;
     eventLoop->setsize = setsize;
     eventLoop->lastTime = time(NULL);
-    eventLoop->timeEventHead = NULL;
+    eventLoop->timeEventHead = NULL;  // 时间事件链表头
     eventLoop->timeEventNextId = 0;
     eventLoop->stop = 0;
     eventLoop->maxfd = -1;
-    eventLoop->beforesleep = NULL;
+    eventLoop->beforesleep = NULL; // 进入事件循环前需要执行的操作，此项会在redis main() 函数中设置
+      // 在这里，aeApiCreate() 函数对于每个IO 多路复用模型的实现都有不同，
+        // 具体参见源代码，因为每种IO 多路复用模型的初始化都不同
     if (aeApiCreate(eventLoop) == -1) goto err;
     /* Events with mask == AE_NONE are not set. So let's initialize the
      * vector with it. */
+      // 初始化事件类型掩码为无事件状态
     for (i = 0; i < setsize; i++)
         eventLoop->events[i].mask = AE_NONE;
     return eventLoop;

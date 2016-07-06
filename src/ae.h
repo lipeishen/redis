@@ -29,7 +29,8 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-
+//用于Redis的事件处理，包括句柄事件和超时事件。事件驱动
+//  在网络相关操作中，定义了一组公共操作接口：aeApiCreate，aeApiFree，aeApiAddEvent，aeApiDelEvent，aeApiPoll，aeApiName方法。在ae_epoll.c、ae_kqueue.c和ae_select.c中，分别实现了基于epoll/kqueue和select系统调用的接口。系统调用的选择顺序依次为epoll，kqueue，select。
 #ifndef __AE_H__
 #define __AE_H__
 
@@ -51,6 +52,7 @@
 #define AE_DELETED_EVENT_ID -1
 
 /* Macros */
+//宏
 #define AE_NOTUSED(V) ((void) V)
 
 struct aeEventLoop;
@@ -60,43 +62,54 @@ typedef void aeFileProc(struct aeEventLoop *eventLoop, int fd, void *clientData,
 typedef int aeTimeProc(struct aeEventLoop *eventLoop, long long id, void *clientData);
 typedef void aeEventFinalizerProc(struct aeEventLoop *eventLoop, void *clientData);
 typedef void aeBeforeSleepProc(struct aeEventLoop *eventLoop);
+/*Redis 内部有个小型的事件驱动，它主要处理两项任务：
 
+    文件事件：使用I/O多路复用技术处理多个客户端请求，并返回执行结果。
+    时间事件：维护服务器的资源管理，状态检查。
+*/
 /* File event structure */
+//定义文件操作事件的结构体
 typedef struct aeFileEvent {
     int mask; /* one of AE_(READABLE|WRITABLE) */
+     // 回调函数指针
     aeFileProc *rfileProc;
     aeFileProc *wfileProc;
-    void *clientData;
+    void *clientData; // clientData 参数一般是指向redisClient 的指针
 } aeFileEvent;
 
 /* Time event structure */
+定义时间事件的结构体
 typedef struct aeTimeEvent {
     long long id; /* time event identifier. */
     long when_sec; /* seconds */
     long when_ms; /* milliseconds */
-    aeTimeProc *timeProc;
-    aeEventFinalizerProc *finalizerProc;
+    aeTimeProc *timeProc; // 定时回调函数指针
+    aeEventFinalizerProc *finalizerProc; // 定时事件清理函数，当删除定时事件的时候会被调用
     void *clientData;
-    struct aeTimeEvent *next;
+    struct aeTimeEvent *next; // 定时事件表采用链表来维护
 } aeTimeEvent;
 
 /* A fired event */
+//触发事件结构体
 typedef struct aeFiredEvent {
     int fd;
     int mask;
 } aeFiredEvent;
 
 /* State of an event based program */
+//事件循环结构体
 typedef struct aeEventLoop {
     int maxfd;   /* highest file descriptor currently registered */
     int setsize; /* max number of file descriptors tracked */
-    long long timeEventNextId;
-    time_t lastTime;     /* Used to detect system clock skew */
-    aeFileEvent *events; /* Registered events */
-    aeFiredEvent *fired; /* Fired events */
-    aeTimeEvent *timeEventHead;
-    int stop;
+    long long timeEventNextId;// 记录最大的定时事件id + 1
+    time_t lastTime;     /* Used to detect system clock skew */  // 用于系统时间的矫正
+    aeFileEvent *events; /* Registered events */ // I/O 事件表
+    aeFiredEvent *fired; /* Fired events */ // 被触发的事件
+    aeTimeEvent *timeEventHead;  // 定时事件表
+    int stop; // 事件循环结束标识
+     // 对于不同的I/O 多路复用技术，有不同的数据，详见各自实现
     void *apidata; /* This is used for polling API specific data */
+    // 新的循环前需要执行的操作
     aeBeforeSleepProc *beforesleep;
 } aeEventLoop;
 
